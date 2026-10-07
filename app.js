@@ -1,7 +1,10 @@
 'use strict';
 const $=id=>document.getElementById(id);
-let tracks=[],db=null,ctx=null,gain=null,source=null,buffer=null,selected=null,playing=false,offset=0,started=0,revision=0,hidden=true;
+let tracks=[],db=null,ctx=null,buffer=null,selected=null,playing=false,offset=0,revision=0,hidden=true;
 const revealed=new Set();const urls=new Map();let toastTimer;
+// Native media playback uses the phone's media audio route, including in silent mode.
+const player=new Audio();player.preload='auto';player.setAttribute('playsinline','');player.volume=Number($('volume').value);
+function playbackSession(){try{if(navigator.audioSession)navigator.audioSession.type='playback'}catch{}}
 function toast(message){$('toast').textContent=message;$('toast').style.display='block';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').style.display='none',4500)}
 function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function time(n){n=Math.max(0,Math.floor(n||0));return `${Math.floor(n/60).toString().padStart(2,'0')}:${(n%60).toString().padStart(2,'0')}`}
@@ -14,20 +17,30 @@ function render(){
  $('tracks').innerHTML=tracks.map((t,i)=>{const ready=!!(t.file||t.blob),active=selected?.id===t.id;return `<article class="card ${!ready?'unavailable':''} ${active?'active':''}" data-id="${escapeHTML(t.id)}"><div class="card-top"><span class="number">${String(i+1).padStart(2,'0')}</span><span class="chip">${active&&playing?'En boucle':ready?'Prêt':'À importer'}</span></div><button class="play" data-play="${escapeHTML(t.id)}" ${!ready?'disabled':''} aria-label="${active&&playing?'Mettre en pause':'Lire'} le son ${i+1}">${active&&playing?'Ⅱ':'▶'}</button><h2 class="card-title">${escapeHTML(title(t))}</h2>${hidden?`<button class="reveal" data-reveal="${escapeHTML(t.id)}">${revealed.has(t.id)?'Masquer':'Révéler la réponse'}</button>`:''}</article>`}).join('');
  $('nowTitle').textContent=selected?title(selected):'À vous de jouer';$('nowStatus').textContent=selected?(playing?'Lecture en boucle':'En pause'):'Choisissez un son';$('pause').disabled=!selected||!buffer;$('restart').disabled=!selected||!buffer;$('seek').disabled=!selected||!buffer;$('pause').textContent=playing?'Ⅱ':'▶';$('pause').setAttribute('aria-label',playing?'Mettre en pause':'Reprendre');
 }
-function audio(){if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();gain=ctx.createGain();gain.gain.value=Number($('volume').value);gain.connect(ctx.destination)}return ctx.resume()}
-function stopSource(){if(source){source.onended=null;try{source.stop()}catch{}source.disconnect();source=null}playing=false}
+function audio(){if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();return Promise.resolve(ctx)}
+function stopSource(){player.pause();playing=false}
 function bounds(t,b=buffer){const duration=b?.duration||t.duration||0;return [Math.max(0,Math.min(Number(t.start)||0,Math.max(0,duration-.02))),Math.min(Number(t.end)||duration,duration)]}
-function position(){if(!selected||!buffer)return 0;const [a,b]=bounds(selected);const span=b-a;return span>0?(offset+(playing?ctx.currentTime-started:0))%span:0}
-function begin(){const [a,b]=bounds(selected);if(b<=a)throw new Error('L’extrait est trop court.');source=ctx.createBufferSource();source.buffer=buffer;source.loop=true;source.loopStart=a;source.loopEnd=b;source.connect(gain);offset=offset%(b-a);source.start(0,a+offset);started=ctx.currentTime;playing=true;render()}
+function position(){if(!selected||!buffer)return 0;const [a,b]=bounds(selected);return Math.max(0,Math.min(player.currentTime-a,b-a))}
+function begin(){const [a,b]=bounds(selected);if(b<=a)throw new Error('L’extrait est trop court.');playbackSession();player.currentTime=a+Math.min(offset,Math.max(0,b-a-.01));player.loop=a===0&&b>=buffer.duration-.02;const token=revision;return player.play().then(()=>{if(token!==revision)return;playing=true;render()})}
+function loopExcerpt(){if(!playing||!selected||!buffer)return;const [a,b]=bounds(selected);if(player.currentTime>=b||player.ended){player.currentTime=a;if(player.paused)player.play().catch(e=>{playing=false;render();toast('Touchez Lecture pour reprendre le son.')})}}
+player.addEventListener('timeupdate',loopExcerpt);player.addEventListener('ended',loopExcerpt);
+setInterval(loopExcerpt,50);
 async function play(t){
- if(selected?.id===t.id&&buffer){if(playing){offset=position();stopSource();render()}else{try{await audio();begin()}catch(e){toast('Lecture impossible : '+e.message)}}return}
+ if(selected?.id===t.id&&buffer){if(playing){offset=position();stopSource();render()}else{try{await begin()}catch(e){toast('Lecture impossible : '+e.message)}}return}
  const token=++revision;stopSource();selected=t;buffer=null;offset=0;render();$('nowStatus').textContent='Chargement…';
- try{await audio();const bytes=t.blob?await t.blob.arrayBuffer():await fetch(t.file).then(r=>{if(!r.ok)throw new Error('Fichier introuvable');return r.arrayBuffer()});const decoded=await ctx.decodeAudioData(bytes);if(token!==revision)return;buffer=decoded;t.duration=decoded.duration;begin()}
- catch(e){if(token!==revision)return;selected=null;buffer=null;render();toast('Impossible de lire ce son. Importez un fichier compatible.');console.error(e)}
+ try{
+  playbackSession();
+  // Call play during the tap, before any asynchronous loading: required by iOS.
+  player.onloadedmetadata=()=>{if(token!==revision)return;buffer={duration:player.duration};t.duration=player.duration;const [a,b]=bounds(t);player.currentTime=a;player.loop=a===0&&b>=player.duration-.02;render()};
+  if(t.blob){if(!urls.has(t.blob))urls.set(t.blob,URL.createObjectURL(t.blob));player.src=urls.get(t.blob)}else player.src=t.file;
+  await player.play();if(token!==revision)return;
+  buffer={duration:player.duration};t.duration=player.duration;playing=true;render();
+ }catch(e){if(token!==revision)return;stopSource();selected=null;buffer=null;render();toast('Impossible de lire ce son : '+e.message);console.error(e)}
 }
+
 function stop(){++revision;stopSource();selected=null;buffer=null;offset=0;render();$('elapsed').textContent='00:00';$('length').textContent='00:00';$('seek').value='0';$('seek').style.setProperty('--played','0%')}
 $('tracks').addEventListener('click',e=>{const button=e.target.closest('button');if(!button)return;const t=tracks.find(t=>t.id===(button.dataset.play||button.dataset.reveal));if(button.dataset.play)play(t);else if(t){revealed.has(t.id)?revealed.delete(t.id):revealed.add(t.id);render()}});
-$('presenter').onchange=()=>{hidden=$('presenter').checked;revealed.clear();render()};$('pause').onclick=()=>selected&&play(selected);$('stop').onclick=stop;$('volume').oninput=()=>{if(gain)gain.gain.value=Number($('volume').value)};
+$('presenter').onchange=()=>{hidden=$('presenter').checked;revealed.clear();render()};$('pause').onclick=()=>selected&&play(selected);$('stop').onclick=stop;$('volume').oninput=()=>{player.volume=Number($('volume').value)};
 document.addEventListener('keydown',e=>{if(e.target.matches('input,textarea,button,summary')||$('editor').open)return;if(e.code==='Space'){e.preventDefault();if(selected)play(selected)}if(e.key==='Escape')stop()});
 let seeking=false;
 function updateTimeline(){
@@ -42,7 +55,7 @@ function seekTo(seconds,restartPlayback=false){
  if(!selected||!buffer)return;
  const [a,b]=bounds(selected),resume=playing||restartPlayback;
  stopSource();offset=Math.max(0,Math.min(Number(seconds)||0,Math.max(0,b-a-.01)));
- if(resume)begin();else render();updateTimeline();
+ player.currentTime=a+offset;if(resume)begin().catch(e=>{playing=false;render();toast('Lecture impossible : '+e.message)});else render();updateTimeline();
 }
 $('seek').addEventListener('pointerdown',()=>{seeking=true});
 window.addEventListener('pointerup',()=>{seeking=false;updateTimeline()});
@@ -69,6 +82,6 @@ $('editorTracks').addEventListener('click',async e=>{
 $('add').onclick=async()=>{const t={id:crypto.randomUUID(),label:`Son ${tracks.length+1}`,file:null,start:0,end:15};try{await save(t);tracks.push(t);render();renderEditor();$('editorTracks').lastElementChild.scrollIntoView({block:'nearest'});toast('Nouvel emplacement ajouté.')}catch(e){toast('Ajout impossible : '+e.message)}};
 async function init(){try{tracks=await fetch('tracks.json').then(r=>{if(!r.ok)throw new Error('Chargement impossible');return r.json()});try{db=await openDB();const stored=await records();tracks=tracks.map(t=>stored.find(s=>s.id===t.id)||t);tracks.push(...stored.filter(s=>!tracks.some(t=>t.id===s.id)));$('storageNote').textContent='Les imports restent dans ce navigateur. Ils ne sont pas transférés à un autre appareil. Effacer les données du navigateur les supprime.'}catch(e){$('storageNote').textContent='Le stockage local est indisponible. Les imports et les réglages ne pourront pas être sauvegardés.';toast('Le navigateur ne permet pas la sauvegarde locale.')}render();tick();
  fetch('sources.json').then(r=>r.json()).then(list=>{$('sources').innerHTML=list.map(s=>`<p><strong>${escapeHTML(s.label)}</strong><br>${escapeHTML(s.credit)}${s.url?` · <a href="${escapeHTML(s.url)}" target="_blank" rel="noopener noreferrer">Source</a>`:''}</p>`).join('')}).catch(()=>{});
- if('serviceWorker' in navigator&&window.isSecureContext){try{const reg=await navigator.serviceWorker.register('sw.js');const check=async()=>{const cache=await caches.open('a-loreille-v9');const ready=!!(await cache.match('offline-ready'));$('offline').textContent=ready?'Prêt hors ligne':'Préparation du hors-ligne…'};navigator.serviceWorker.addEventListener('message',e=>{if(e.data==='OFFLINE_READY')check()});await navigator.serviceWorker.ready;await check();reg.addEventListener('updatefound',()=>{reg.installing?.addEventListener('statechange',check)})}catch(e){$('offline').textContent='Hors-ligne indisponible';console.error(e)}}else $('offline').textContent='Hors-ligne : HTTPS requis';
+ if('serviceWorker' in navigator&&window.isSecureContext){try{const reg=await navigator.serviceWorker.register('sw.js');const check=async()=>{const cache=await caches.open('a-loreille-v10');const ready=!!(await cache.match('offline-ready'));$('offline').textContent=ready?'Prêt hors ligne':'Préparation du hors-ligne…'};navigator.serviceWorker.addEventListener('message',e=>{if(e.data==='OFFLINE_READY')check()});await navigator.serviceWorker.ready;await check();reg.addEventListener('updatefound',()=>{reg.installing?.addEventListener('statechange',check)})}catch(e){$('offline').textContent='Hors-ligne indisponible';console.error(e)}}else $('offline').textContent='Hors-ligne : HTTPS requis';
  }catch(e){$('offline').textContent='Erreur de chargement';toast('Lancez le site avec le serveur local fourni.');console.error(e)}}
 init();
