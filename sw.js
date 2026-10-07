@@ -1,4 +1,4 @@
-const CACHE='a-loreille-v13';
+const CACHE='a-loreille-v14';
 const ASSETS=["./", "index.html", "style.css", "app.js", "tracks.json", "sources.json", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "audio/01_brame_cerf.mp3", "audio/02_clavier_plus_fort.mp3", "audio/03_apnee.mp3", "audio/04_thermomix_sans_intro.mp3", "audio/05_moteur_2cv.mp3", "audio/06_cuillere_fournie.mp3", "audio/07_pilates.mp3", "audio/08_tortue_fournie.mp3", "audio/09_festnoz_fourni.mp3", "audio/00_basket.mp3"];
 self.addEventListener('install',event=>event.waitUntil((async()=>{const cache=await caches.open(CACHE);await cache.addAll(ASSETS);await cache.put('offline-ready',new Response('ready'));await self.skipWaiting();})()));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{for(const name of await caches.keys())if(name.startsWith('a-loreille-')&&name!==CACHE)await caches.delete(name);await self.clients.claim();for(const client of await self.clients.matchAll())client.postMessage('OFFLINE_READY');})()));
