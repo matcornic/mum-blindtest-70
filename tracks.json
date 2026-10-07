@@ -1,13 +1,5 @@
 [
   {
-    "id": "1",
-    "label": "Brame du cerf",
-    "file": "audio/01_brame_cerf.mp3",
-    "start": 0,
-    "end": 15,
-    "duration": 47.530862
-  },
-  {
     "id": "2",
     "label": "Quelqu’un qui tape sur un clavier d’ordinateur",
     "file": "audio/02_clavier_plus_fort.mp3",
@@ -16,20 +8,20 @@
     "duration": 22.891542
   },
   {
-    "id": "3",
-    "label": "Machine CPAP pour l’apnée du sommeil",
-    "file": "audio/03_apnee.mp3",
+    "id": "10",
+    "label": "Match de basketball",
+    "file": "audio/00_basket.mp3",
     "start": 0,
     "end": 15,
-    "duration": 86.993764
+    "duration": 28.7
   },
   {
-    "id": "4",
-    "label": "Thermomix en fonctionnement",
-    "file": "audio/04_thermomix_sans_intro.mp3",
+    "id": "6",
+    "label": "Cuillère dans une tasse de café chaud",
+    "file": "audio/06_cuillere_fournie.mp3",
     "start": 0,
-    "end": 17.13,
-    "duration": 17.13
+    "end": 13.711396,
+    "duration": 13.711396
   },
   {
     "id": "5",
@@ -40,28 +32,12 @@
     "duration": 69.574671
   },
   {
-    "id": "6",
-    "label": "Cuillère dans une tasse de café chaud",
-    "file": "audio/06_cuillere_echo.mp3",
+    "id": "4",
+    "label": "Thermomix en fonctionnement",
+    "file": "audio/04_thermomix_sans_intro.mp3",
     "start": 0,
-    "end": 15,
-    "duration": 17.75
-  },
-  {
-    "id": "7",
-    "label": "Cours de Pilates",
-    "file": "audio/07_pilates.mp3",
-    "start": 0,
-    "end": 14.96,
-    "duration": 15.0
-  },
-  {
-    "id": "8",
-    "label": "Deux tortues qui s’accouplent",
-    "file": "audio/08_tortue_fournie.mp3",
-    "start": 0,
-    "end": 11.34,
-    "duration": 11.377778
+    "end": 17.13,
+    "duration": 17.13
   },
   {
     "id": "9",
@@ -72,11 +48,35 @@
     "duration": 31.021859
   },
   {
-    "id": "10",
-    "label": "Match de basketball",
-    "file": "audio/00_basket.mp3",
+    "id": "1",
+    "label": "Brame du cerf",
+    "file": "audio/01_brame_cerf.mp3",
     "start": 0,
     "end": 15,
-    "duration": 28.7
+    "duration": 47.530862
+  },
+  {
+    "id": "7",
+    "label": "Cours de Pilates",
+    "file": "audio/07_pilates.mp3",
+    "start": 0,
+    "end": 14.96,
+    "duration": 15.0
+  },
+  {
+    "id": "3",
+    "label": "Machine CPAP pour l’apnée du sommeil",
+    "file": "audio/03_apnee.mp3",
+    "start": 0,
+    "end": 15,
+    "duration": 86.993764
+  },
+  {
+    "id": "8",
+    "label": "Deux tortues qui s’accouplent",
+    "file": "audio/08_tortue_fournie.mp3",
+    "start": 0,
+    "end": 11.34,
+    "duration": 11.377778
   }
 ]
